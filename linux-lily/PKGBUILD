@@ -2,26 +2,21 @@
 # Maintainer: Tobias Powalowski <tpowa@archlinux.org>
 # Maintainer: Thomas Baechler <thomas@archlinux.org>
 
-pkgbase=linux               # Build stock -ARCH kernel
+pkgbase=linux-lily               # Build stock -ARCH kernel
 #pkgbase=linux-custom       # Build kernel with a different name
-_srcname=linux-3.8
-pkgver=3.8.4
+pkgver=3.8.5
 pkgrel=1
 arch=('i686' 'x86_64')
 url="http://www.kernel.org/"
 license=('GPL2')
-makedepends=('xmlto' 'docbook-xsl')
+# makedepends=('xmlto' 'docbook-xsl')
 options=('!strip')
-source=("http://www.kernel.org/pub/linux/kernel/v3.x/${_srcname}.tar.xz"
-        "http://www.kernel.org/pub/linux/kernel/v3.x/patch-${pkgver}.xz"
-        # the main kernel config files
+source=(# the main kernel config files
         'config' 'config.x86_64'
         # standard config files for mkinitcpio ramdisk
         'linux.preset'
         'change-default-console-loglevel.patch')
-md5sums=('1c738edfc54e7c65faeb90c436104e2f'
-         '40ab82996ff4b49ad3f4e19cf729dcab'
-         '307107a8b15060e6fc0e48bdaacaed06'
+md5sums=('307107a8b15060e6fc0e48bdaacaed06'
          '03b1dad90f3558dba3031901398c1ca4'
          'eb14dcfd80c00852ef81ded6e826826a'
          'f3def2cefdcbb954c21d8505d23cc83c')
@@ -29,10 +24,7 @@ md5sums=('1c738edfc54e7c65faeb90c436104e2f'
 _kernelname=${pkgbase#linux}
 
 build() {
-  cd "${srcdir}/${_srcname}"
-
-  # add upstream patch
-  patch -p1 -i "${srcdir}/patch-${pkgver}"
+  cd ${startdir}/../linux-git
 
   # add latest fixes from stable queue, if needed
   # http://git.kernel.org/?p=linux/kernel/git/stable/stable-queue.git
@@ -42,11 +34,11 @@ build() {
   # (relevant patch sent upstream: https://lkml.org/lkml/2011/7/26/227)
   patch -Np1 -i "${srcdir}/change-default-console-loglevel.patch"
 
-  if [ "${CARCH}" = "x86_64" ]; then
-    cat "${srcdir}/config.x86_64" > ./.config
-  else
-    cat "${srcdir}/config" > ./.config
-  fi
+  # if [ "${CARCH}" = "x86_64" ]; then
+  #   cat "${srcdir}/config.x86_64" > ./.config
+  # else
+  #   cat "${srcdir}/config" > ./.config
+  # fi
 
   if [ "${_kernelname}" != "" ]; then
     sed -i "s|CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"${_kernelname}\"|g" ./.config
@@ -91,7 +83,7 @@ build() {
 }
 
 _package() {
-  pkgdesc="The ${pkgbase} kernel and modules"
+  pkgdesc="The ${pkgbase} kernel and modules, with aufs3, latencytop, systemtap, uprobe, x32, cjktty and uksm support"
   [ "${pkgbase}" = "linux" ] && groups=('base')
   depends=('coreutils' 'linux-firmware' 'kmod' 'mkinitcpio>=0.7')
   optdepends=('crda: to set the correct wireless channels of your country')
@@ -101,7 +93,7 @@ _package() {
   backup=("etc/mkinitcpio.d/${pkgbase}.preset")
   install=linux.install
 
-  cd "${srcdir}/${_srcname}"
+  cd ${startdir}/../linux-git
 
   KARCH=x86
 
@@ -157,12 +149,20 @@ _package-headers() {
   conflicts=("kernel26${_kernelname}-headers")
   replaces=("kernel26${_kernelname}-headers")
 
+  KARCH=x86
+
+  cd ${startdir}/../linux-git
+  # get kernel version
+  _kernver="$(make LOCALVERSION= kernelrelease)"
+  _basekernel=${_kernver%%-*}
+  _basekernel=${_basekernel%.*}
+
   install -dm755 "${pkgdir}/usr/lib/modules/${_kernver}"
 
   cd "${pkgdir}/usr/lib/modules/${_kernver}"
   ln -sf ../../../src/linux-${_kernver} build
 
-  cd "${srcdir}/${_srcname}"
+  cd ${startdir}/../linux-git
   install -D -m644 Makefile \
     "${pkgdir}/usr/src/linux-${_kernver}/Makefile"
   install -D -m644 kernel/Makefile \
@@ -297,7 +297,7 @@ _package-docs() {
   conflicts=("kernel26${_kernelname}-docs")
   replaces=("kernel26${_kernelname}-docs")
 
-  cd "${srcdir}/${_srcname}"
+  cd ../linux-git
 
   mkdir -p "${pkgdir}/usr/src/linux-${_kernver}"
   cp -al Documentation "${pkgdir}/usr/src/linux-${_kernver}"
@@ -308,7 +308,7 @@ _package-docs() {
   rm -f "${pkgdir}/usr/src/linux-${_kernver}/Documentation/DocBook/Makefile"
 }
 
-pkgname=("${pkgbase}" "${pkgbase}-headers" "${pkgbase}-docs")
+pkgname=("${pkgbase}" "${pkgbase}-headers") # "${pkgbase}-docs")
 for _p in ${pkgname[@]}; do
   eval "package_${_p}() {
     _package${_p#${pkgbase}}
